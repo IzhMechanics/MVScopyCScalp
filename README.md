@@ -1,6 +1,8 @@
 # MVScopyCScalp
-### Перенос настроек тикеров из Привод Бондаря версия 2.9.7.0 в CScalp версия 2.11.2.0
-___<img width="592" height="325" alt="mvscopy" src="https://github.com/user-attachments/assets/a6dd769a-19da-4069-91c7-3a348d634c6e" />
+### Перенос настроек тикеров из Привод Бондаря версия 2.9.7.0 в CScalp версия 2.11.17.0
+___<img width="610" height="301" alt="dfgherth" src="https://github.com/user-attachments/assets/142d9515-2ccf-4cf9-b086-de4cc6547fdc" />
+
+
 
    1. **Вариант 1** Сначало установите новый привод, настройте рабочие пространства,  
      поставьте тикеры в стаканы (но не настраивайте тикеры) и закройте привод  
@@ -15,13 +17,14 @@ ___<img width="592" height="325" alt="mvscopy" src="https://github.com/user-atta
 
    5. *не тестировалось на других версиях
    6. **кластера устанавливаются как дельта "Color_AmountDelta"  
+	  **прибыль в пунктах "ShowProfitType", линейка в пунктах "RulerDataType"  
    **можете использовать вручную **MVScopy-manually.py** прописав папки в конце скрипта  
     if __name__ == "__main__":  
      source_dir = os.path.abspath('исходная папка')  
      target_dir = os.path.abspath('целевая папка')  
 
    ## Donate
-   Попросили добавить донат, посмотрим сколько стоит ваше время 
+   Поддержка разработчика
    
    BSC (BEP20)
    ```
