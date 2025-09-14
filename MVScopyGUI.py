@@ -5,6 +5,8 @@ from tkinter import filedialog, messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 
+    # https://github.com/IzhMechanics/MVScopyCScalp
+
 def transfer_settings():
     source_dir = source_dir_entry.get()
     target_dir = target_dir_entry.get()
@@ -82,6 +84,18 @@ def transfer_settings():
                                     modified = True
                                 continue
 
+                            if elem.tag == "RulerDataType":
+                                if elem.attrib['Value'] != "3":
+                                    elem.attrib['Value'] = "3"
+                                    modified = True
+                                continue
+
+                            if elem.tag == "ShowProfitType":
+                                if elem.attrib['Value'] != "4":
+                                    elem.attrib['Value'] = "4"
+                                    modified = True
+                                continue
+
                             if key in source_values:
                                 if elem.attrib['Value'] != source_values[key]:
                                     elem.attrib['Value'] = source_values[key]
@@ -90,6 +104,11 @@ def transfer_settings():
                 # Сохраняем изменения
                 if modified:
                     xml_content = etree.tostring(t_tree, encoding='utf-8', xml_declaration=True, pretty_print=True)
+
+                    # Убираем лишний перевод строки в конце
+                    if xml_content.endswith(b'\n'):
+                        xml_content = xml_content[:-1]
+
                     if t_has_bom:
                         xml_content = b'\xef\xbb\xbf' + xml_content
                     xml_content = xml_content.replace(b'\n', b'\r\n')
@@ -121,7 +140,6 @@ def transfer_settings():
     except Exception as e:
         messagebox.showerror("Ошибка", f"Произошла ошибка:\n{str(e)}")
 
-
 def browse_source():
     dir_path = filedialog.askdirectory(title="Выберите исходную папку")
     if dir_path:
@@ -135,11 +153,26 @@ def browse_target():
         target_dir_entry.delete(0, tk.END)
         target_dir_entry.insert(0, dir_path)
 
+    # Копирует текст в буфер обмена
+def copy_to_clipboard(address, label):
+    try:
+        # Создаем временное скрытое текстовое поле
+        temp_text = tk.Text(root, height=1)
+        temp_text.insert('1.0', address)
+        temp_text.tag_add('sel', '1.0', 'end-1c')
+        temp_text.event_generate('<<Copy>>')
+        temp_text.destroy()
+
+        # Обновляем статус
+        label.config(text="✓ Скопировано!")
+        root.after(2000, lambda: label.config(text=address))  # Через 2 секунды вернуть адрес
+    except Exception as e:
+        label.config(text="X Ошибка копирования")
 
 # Создаем GUI
 root = ttk.Window(themename="darkly")
 root.title("Перенос настроек MVS")
-root.geometry("600x300")
+root.geometry("615x417")
 
 # Фрейм для основного содержимого
 main_frame = ttk.Frame(root, padding=20)
@@ -150,7 +183,7 @@ ttk.Label(
     main_frame,
     text="Перенос настроек между конфигурациями MVS",
     font=('Helvetica', 14, 'bold')
-).pack(pady=(0, 20))
+).pack(pady=(0, 15))
 
 # Поле для исходной папки
 source_frame = ttk.Frame(main_frame)
@@ -195,7 +228,78 @@ ttk.Label(
     main_frame,
     text="Перед переносом рекомендуется создать резервные копии файлов!",
     font=('Helvetica', 9),
-    foreground="gray"
-).pack()
+    foreground="lightgray"
+).pack(pady=(0, 10))
+
+# Разделитель
+separator = ttk.Separator(main_frame, orient='horizontal')
+separator.pack(fill=tk.X, pady=1)
+
+# Фрейм для крипто-кошельков
+crypto_frame = ttk.Frame(main_frame)
+crypto_frame.pack(fill=tk.X, pady=5, padx=4)
+
+ttk.Label(
+    crypto_frame,
+    text="Поддержка разработчика",
+    font=('Helvetica', 9),
+    foreground="lightgray"
+).pack(pady=(5, 5))
+
+# Список крипто-кошельков
+wallets = [
+    {"name": "BSC (BEP20)", "address": "0xddcbe9f84e455fb920a5ba63b4ff023ffe7f9f72"},
+    {"name": "TON", "address": "UQB9ox7Lx85ewqlMkD52qOjsfM-s03frtPBXzrzkgbX_nyn5"},
+    {"name": "APTOS", "address": "0xfa91c8dd813a43be92117565fe49d0cde224882304d85d53469a31665b284436"},
+    {"name": "TRON (TRC20)", "address": "TBJz8hVW9s4oMdiPqadY7GoB4uDFH4QGSV"}
+]
+
+for wallet in wallets:
+    wallet_frame = ttk.Frame(crypto_frame)
+    wallet_frame.pack(fill=tk.X, pady=3)
+
+    # Название кошелька
+    ttk.Label(
+        wallet_frame,
+        text=f"{wallet['name']}:",
+        width=14,
+        font=('Helvetica', 8)
+    ).pack(side=tk.LEFT)
+
+    # Фрейм для адреса и кнопки
+    address_frame = ttk.Frame(wallet_frame)
+    address_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=3)
+
+    # Адрес кошелька (полный)
+    address_label = ttk.Label(
+        address_frame,
+        text=wallet['address'],
+        font=('Helvetica', 9),
+        foreground="lightblue",
+        cursor="hand2",
+        relief="flat",
+        padding=(5, 2)
+    )
+    address_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    address_label.bind("<Button-1>", lambda e, addr=wallet['address'], lbl=address_label: copy_to_clipboard(addr, lbl))
+
+    # Подсказка при наведении
+    def create_tooltip(widget, text):
+        def show_tooltip(event):
+            tooltip = tk.Toplevel(widget)
+            tooltip.wm_overrideredirect(True)
+            tooltip.wm_geometry(f"+{event.x_root + 5}+{event.y_root - 20}")
+            label = ttk.Label(tooltip, text=text, background="yellow", foreground="black", padding=2)
+            label.pack()
+            widget.tooltip = tooltip
+
+        def hide_tooltip(event):
+            if hasattr(widget, 'tooltip'):
+                widget.tooltip.destroy()
+
+        widget.bind("<Enter>", show_tooltip)
+        widget.bind("<Leave>", hide_tooltip)
+
+    create_tooltip(address_label, "Кликните для копирования")
 
 root.mainloop()
