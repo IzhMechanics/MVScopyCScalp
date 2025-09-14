@@ -1,130 +1,220 @@
 import os
 from lxml import etree
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 
+    # https://github.com/IzhMechanics/MVScopyCScalp
 
-def transfer_settings(source_dir, target_dir):
-    print(f"\nНачинаем обработку. Исходная папка: {source_dir}, Целевая папка: {target_dir}")
+def transfer_settings():
+    source_dir = source_dir_entry.get()
+    target_dir = target_dir_entry.get()
 
-    # Получаем списки файлов
-    source_files = [f for f in os.listdir(source_dir) if f.lower().endswith(('.tmp', '.xml'))]
-    target_files = [f for f in os.listdir(target_dir) if f.lower().endswith(('.tmp', '.xml'))]
-
-    print(f"Найдено {len(source_files)} исходных и {len(target_files)} целевых файлов")
-
-    # Сопоставляем файлы по базовому имени (без расширения)
-    file_pairs = []
-    for t_file in target_files:
-        t_base = os.path.splitext(t_file)[0]
-        for s_file in source_files:
-            s_base = os.path.splitext(s_file)[0]
-            if s_base == t_base:
-                file_pairs.append((s_file, t_file))
-                break
-
-    if not file_pairs:
-        print("ОШИБКА: Нет парных файлов для обработки")
+    if not source_dir or not target_dir:
+        messagebox.showerror("Ошибка", "Укажите обе папки!")
         return
 
-    print(f"Найдено {len(file_pairs)} пар файлов для обработки")
+    confirm = messagebox.askyesno(
+        "Подтверждение",
+        "Вы уверены, что хотите перенести настройки?\n\nПеред использованием сохраните резервные копии файлов!"
+    )
+    if not confirm:
+        return
 
-    for s_file, t_file in file_pairs:
-        print(f"\nОбработка: {s_file} -> {t_file}")
+    try:
+        # Получаем списки файлов
+        source_files = [f for f in os.listdir(source_dir) if f.lower().endswith(('.tmp', '.xml'))]
+        target_files = [f for f in os.listdir(target_dir) if f.lower().endswith(('.tmp', '.xml'))]
 
-        try:
-            # Читаем исходный файл с учетом BOM
-            s_path = os.path.join(source_dir, s_file)
-            with open(s_path, 'rb') as f:
-                s_content = f.read()
-                # Определяем наличие BOM
-                has_bom = s_content.startswith(b'\xef\xbb\xbf')
-                # Читаем содержимое как UTF-8
-                s_content = s_content.decode('utf-8-sig')  # -sig убирает BOM при декодировании
+        # Сопоставляем файлы по базовому имени
+        file_pairs = []
+        for t_file in target_files:
+            t_base = os.path.splitext(t_file)[0]
+            for s_file in source_files:
+                if os.path.splitext(s_file)[0] == t_base:
+                    file_pairs.append((s_file, t_file))
+                    break
 
-            # Парсим XML
-            s_tree = etree.fromstring(s_content.encode('utf-8'))
+        if not file_pairs:
+            messagebox.showwarning("Предупреждение", "Нет парных файлов для обработки!")
+            return
 
-            # Читаем целевой файл
-            t_path = os.path.join(target_dir, t_file)
-            with open(t_path, 'rb') as f:
-                t_content = f.read()
-                t_has_bom = t_content.startswith(b'\xef\xbb\xbf')
-                t_content = t_content.decode('utf-8-sig')
+        updated_files = 0
 
-            # Парсим целевой XML с сохранением форматирования
-            parser = etree.XMLParser(remove_blank_text=False, strip_cdata=False)
-            t_tree = etree.fromstring(t_content.encode('utf-8'), parser)
+        for s_file, t_file in file_pairs:
+            try:
+                # Читаем исходный файл
+                s_path = os.path.join(source_dir, s_file)
+                with open(s_path, 'rb') as f:
+                    s_content = f.read()
+                    has_bom = s_content.startswith(b'\xef\xbb\xbf')
+                    s_content = s_content.decode('utf-8-sig')
 
-            # Собираем значения из исходного файла
-            source_values = {}
-            for section in s_tree:
-                for elem in section:
-                    if 'Value' in elem.attrib:
-                        key = f"{section.tag}/{elem.tag}"
-                        source_values[key] = elem.attrib['Value']
+                s_tree = etree.fromstring(s_content.encode('utf-8'))
 
-            # Применяем изменения
-            modified = False
-            for section in t_tree:
-                for elem in section:
-                    if 'Value' in elem.attrib:
-                        key = f"{section.tag}/{elem.tag}"
+                # Читаем целевой файл
+                t_path = os.path.join(target_dir, t_file)
+                with open(t_path, 'rb') as f:
+                    t_content = f.read()
+                    t_has_bom = t_content.startswith(b'\xef\xbb\xbf')
+                    t_content = t_content.decode('utf-8-sig')
 
-                        # Специальная обработка ClusterStyleColor
-                        if elem.tag == "ClusterStyleColor":
-                            old_val = elem.attrib['Value']
-                            if old_val != "Color_AmountDelta":
-                                elem.attrib['Value'] = "Color_AmountDelta"
-                                modified = True
-                            continue
+                parser = etree.XMLParser(remove_blank_text=False, strip_cdata=False)
+                t_tree = etree.fromstring(t_content.encode('utf-8'), parser)
 
-                        # Обычные элементы
-                        if key in source_values:
-                            old_val = elem.attrib['Value']
-                            new_val = source_values[key]
-                            if old_val != new_val:
-                                elem.attrib['Value'] = new_val
-                                modified = True
+                # Собираем значения из исходного файла
+                source_values = {}
+                for section in s_tree:
+                    for elem in section:
+                        if 'Value' in elem.attrib:
+                            key = f"{section.tag}/{elem.tag}"
+                            source_values[key] = elem.attrib['Value']
 
-            # Записываем изменения с сохранением BOM и CRLF
-            if modified:
-                # Генерируем XML содержимое
-                xml_content = etree.tostring(t_tree,
-                                             encoding='utf-8',
-                                             xml_declaration=True,
-                                             pretty_print=True)
+                # Применяем изменения
+                modified = False
+                for section in t_tree:
+                    for elem in section:
+                        if 'Value' in elem.attrib:
+                            key = f"{section.tag}/{elem.tag}"
 
-                # Добавляем BOM если был в исходном файле
-                if t_has_bom:
-                    xml_content = b'\xef\xbb\xbf' + xml_content
+                            if elem.tag == "ClusterStyleColor":
+                                if elem.attrib['Value'] != "Color_AmountDelta":
+                                    elem.attrib['Value'] = "Color_AmountDelta"
+                                    modified = True
+                                continue
 
-                # Конвертируем LF в CRLF
-                xml_content = xml_content.replace(b'\n', b'\r\n')
+                            if elem.tag == "RulerDataType":
+                                if elem.attrib['Value'] != "3":
+                                    elem.attrib['Value'] = "3"
+                                    modified = True
+                                continue
 
-                with open(t_path, 'wb') as f:
-                    f.write(xml_content)
+                            if elem.tag == "ShowProfitType":
+                                if elem.attrib['Value'] != "4":
+                                    elem.attrib['Value'] = "4"
+                                    modified = True
+                                continue
 
-                print(f"УСПЕХ: Файл {t_file} обновлён (UTF-8 {'с BOM' if t_has_bom else 'без BOM'}, CRLF)")
-            else:
-                print("ИЗМЕНЕНИЙ НЕТ: Файл уже содержит актуальные значения")
+                            if key in source_values:
+                                if elem.attrib['Value'] != source_values[key]:
+                                    elem.attrib['Value'] = source_values[key]
+                                    modified = True
 
-        except Exception as e:
-            print(f"ОШИБКА при обработке {t_file}: {str(e)}")
+                # Сохраняем изменения
+                if modified:
+                    xml_content = etree.tostring(t_tree, encoding='utf-8', xml_declaration=True, pretty_print=True)
+
+                    # Убираем лишний перевод строки в конце
+                    if xml_content.endswith(b'\n'):
+                        xml_content = xml_content[:-1]
+
+                    if t_has_bom:
+                        xml_content = b'\xef\xbb\xbf' + xml_content
+                    xml_content = xml_content.replace(b'\n', b'\r\n')
+
+                    with open(t_path, 'wb') as f:
+                        f.write(xml_content)
+
+                    updated_files += 1
+
+            except Exception as e:
+                messagebox.showerror(
+                    "Ошибка обработки файла",
+                    f"Ошибка при обработке {t_file}:\n{str(e)}"
+                )
+                return
+
+        messagebox.showinfo(
+            "Готово",
+            f"Настройки успешно перенесены!\n\n"
+            f"Статистика обработки:\n"
+            f"- Всего найденных пар файлов: {len(file_pairs)}\n"
+            f"- Успешно обновлено: {updated_files}\n"
+            f"\n"  # пустая строка
+            f"Общее количество файлов:\n"
+            f"- Исходных: {len(source_files)}\n"
+            f"- Целевых: {len(target_files)}"
+        )
+
+    except Exception as e:
+        messagebox.showerror("Ошибка", f"Произошла ошибка:\n{str(e)}")
 
 
-if __name__ == "__main__":
-    source_dir = os.path.abspath('MVS')
-    target_dir = os.path.abspath('MVScopy')
+def browse_source():
+    dir_path = filedialog.askdirectory(title="Выберите исходную папку")
+    if dir_path:
+        source_dir_entry.delete(0, tk.END)
+        source_dir_entry.insert(0, dir_path)
 
-    if not os.path.exists(source_dir):
-        print(f"ОШИБКА: Исходная папка не существует: {source_dir}")
-    elif not os.path.exists(target_dir):
-        print(f"ОШИБКА: Целевая папка не существует: {target_dir}")
-    else:
-        print("=" * 50)
-        print("XML/TMP Settings Transfer Tool")
-        print("(Сохранение UTF-8 с BOM и CRLF)")
-        print("=" * 50)
 
-        transfer_settings(source_dir, target_dir)
+def browse_target():
+    dir_path = filedialog.askdirectory(title="Выберите целевую папку")
+    if dir_path:
+        target_dir_entry.delete(0, tk.END)
+        target_dir_entry.insert(0, dir_path)
 
-        print("\nОбработка завершена.")
+
+# Создаем GUI
+root = ttk.Window(themename="darkly")
+root.title("Перенос настроек MVS")
+root.geometry("600x300")
+
+# Фрейм для основного содержимого
+main_frame = ttk.Frame(root, padding=20)
+main_frame.pack(fill=tk.BOTH, expand=True)
+
+# Заголовок
+ttk.Label(
+    main_frame,
+    text="Перенос настроек между конфигурациями MVS",
+    font=('Helvetica', 14, 'bold')
+).pack(pady=(0, 20))
+
+# Поле для исходной папки
+source_frame = ttk.Frame(main_frame)
+source_frame.pack(fill=tk.X, pady=5)
+
+ttk.Label(source_frame, text="Исходная папка:", width=15).pack(side=tk.LEFT)
+source_dir_entry = ttk.Entry(source_frame)
+source_dir_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+ttk.Button(
+    source_frame,
+    text="Обзор",
+    command=browse_source,
+    bootstyle=INFO
+).pack(side=tk.LEFT)
+
+# Поле для целевой папки
+target_frame = ttk.Frame(main_frame)
+target_frame.pack(fill=tk.X, pady=5)
+
+ttk.Label(target_frame, text="Целевая папка:", width=15).pack(side=tk.LEFT)
+target_dir_entry = ttk.Entry(target_frame)
+target_dir_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+ttk.Button(
+    target_frame,
+    text="Обзор",
+    command=browse_target,
+    bootstyle=INFO
+).pack(side=tk.LEFT)
+
+# Кнопка переноса
+transfer_btn = ttk.Button(
+    main_frame,
+    text="Перенести настройки",
+    command=transfer_settings,
+    bootstyle=SUCCESS,
+    width=20
+)
+transfer_btn.pack(pady=20)
+
+# Информационное сообщение
+ttk.Label(
+    main_frame,
+    text="Перед переносом рекомендуется создать резервные копии файлов!",
+    font=('Helvetica', 9),
+    foreground="gray"
+).pack()
+
+root.mainloop()
